@@ -367,6 +367,52 @@ if 'analyze' in st.session_state and st.session_state['analyze']:
             )
             st.plotly_chart(fig_pe, use_container_width=True)
 
+        # Financial Ratios Comparison Chart
+        st.subheader("Financial Ratios Comparison")
+
+        ratio_metrics = [
+            ('Operating Margin', lambda info: info.get('operatingMargins')),
+            ('Profit Margin', lambda info: info.get('profitMargins')),
+            ('ROE', lambda info: info.get('returnOnEquity')),
+            ('Debt/Equity', lambda info: info.get('debtToEquity')),
+            ('Current Ratio', lambda info: info.get('currentRatio')),
+            ('P/E Ratio', lambda info: info.get('trailingPE')),
+            ('Forward P/E', lambda info: info.get('forwardPE')),
+            ('Price/Book', lambda info: info.get('priceToBook')),
+            ('Dividend Yield', lambda info: info.get('dividendYield')),
+        ]
+
+        ratio_data = []
+        for ticker, data in stock_data.items():
+            info = data['info']
+            row = {'Ticker': ticker}
+            for name, fn in ratio_metrics:
+                val = fn(info)
+                if name in ['Operating Margin', 'Profit Margin', 'ROE', 'Dividend Yield'] and isinstance(val, (int, float)):
+                    row[name] = val * 100
+                elif isinstance(val, (int, float)):
+                    row[name] = val
+                else:
+                    row[name] = None
+            ratio_data.append(row)
+
+        ratio_df = pd.DataFrame(ratio_data)
+        if not ratio_df.drop(columns=['Ticker']).isna().all().all():
+            ratio_melt = ratio_df.melt(id_vars='Ticker', var_name='Metric', value_name='Value').dropna(subset=['Value'])
+            if not ratio_melt.empty:
+                fig_ratios = px.bar(
+                    ratio_melt,
+                    x='Ticker',
+                    y='Value',
+                    color='Metric',
+                    barmode='group',
+                    title='Financial Ratios Comparison',
+                    labels={'Value': 'Value (percent for margins/ROE/dividend)'}
+                )
+                st.plotly_chart(fig_ratios, use_container_width=True)
+        else:
+            st.info("No ratio data available to plot.")
+
 else:
     # Welcome screen
     st.info("👈 Enter stock tickers in the sidebar and click 'Analyze Stocks' to begin")
