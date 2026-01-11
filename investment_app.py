@@ -98,25 +98,64 @@ if 'analyze' in st.session_state and st.session_state['analyze']:
     
     # Fetch data for all tickers
     stock_data = {}
-    for ticker in tickers:
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for idx, ticker in enumerate(tickers):
         try:
+            status_text.text(f"Fetching data for {ticker}... ({idx + 1}/{len(tickers)})")
             stock = yf.Ticker(ticker)
-            stock_data[ticker] = {
-                'ticker_obj': stock,
-                'info': stock.info,
-                'history': stock.history(period=selected_period),
-                'financials': stock.financials,
-                'balance_sheet': stock.balance_sheet
-            }
+            
+            # Fetch data with error handling
+            info = stock.info
+            history = stock.history(period=selected_period)
+            
+            # Only add if we got valid data
+            if len(history) > 0 and info:
+                stock_data[ticker] = {
+                    'ticker_obj': stock,
+                    'info': info,
+                    'history': history,
+                    'financials': stock.financials,
+                    'balance_sheet': stock.balance_sheet
+                }
+            else:
+                st.warning(f"No data available for {ticker}")
+                
         except Exception as e:
-            st.error(f"Error fetching data for {ticker}: {e}")
+            st.warning(f"Could not fetch data for {ticker}: {str(e)}")
+        
+        # Update progress bar
+        progress_bar.progress((idx + 1) / len(tickers))
+        
+        # Add delay to avoid rate limiting
+        import time
+        time.sleep(1)
+    
+    progress_bar.empty()
+    status_text.empty()
+    
+    # Check if we got any data
+    if len(stock_data) == 0:
+        st.error("⚠️ Could not fetch data for any stocks. This might be due to:")
+        st.markdown("""
+        - **Rate limiting** - Yahoo Finance limits requests. Wait 5-10 minutes and try again.
+        - **Invalid ticker symbols** - Make sure you're using correct symbols (e.g., AAPL, MSFT)
+        - **Network issues** - Check your internet connection
+        
+        Try again in a few minutes with fewer stocks (1-3 tickers).
+        """)
+        st.stop()
     
     # TAB 1: Overview
     with tab1:
         st.header("Stock Overview")
         
-        # Display cards for each stock
-        cols = st.columns(min(len(stock_data), 3))
+        if len(stock_data) == 0:
+            st.info("No stock data available to display")
+        else:
+            # Display cards for each stock
+            cols = st.columns(min(len(stock_data), 3))
         
         for idx, (ticker, data) in enumerate(stock_data.items()):
             with cols[idx % 3]:
